@@ -1,0 +1,6 @@
+{
+    "rust-analyzer.linkedProjects": [
+        ".\\fpl_api_server\\Cargo.toml",
+        ".\\fpl_data\\Cargo.toml"
+    ]
+}

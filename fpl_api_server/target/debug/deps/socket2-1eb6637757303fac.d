@@ -1,0 +1,11 @@
+D:\Workspaces\Rust\fpl-demo\fpl-api-server\target\debug\deps\socket2-1eb6637757303fac.rmeta: C:\Users\amcco\.cargo\registry\src\index.crates.io-6f17d22bba15001f\socket2-0.4.9\src\lib.rs C:\Users\amcco\.cargo\registry\src\index.crates.io-6f17d22bba15001f\socket2-0.4.9\src\sockaddr.rs C:\Users\amcco\.cargo\registry\src\index.crates.io-6f17d22bba15001f\socket2-0.4.9\src\socket.rs C:\Users\amcco\.cargo\registry\src\index.crates.io-6f17d22bba15001f\socket2-0.4.9\src\sockref.rs C:\Users\amcco\.cargo\registry\src\index.crates.io-6f17d22bba15001f\socket2-0.4.9\src\sys\windows.rs
+
+D:\Workspaces\Rust\fpl-demo\fpl-api-server\target\debug\deps\libsocket2-1eb6637757303fac.rlib: C:\Users\amcco\.cargo\registry\src\index.crates.io-6f17d22bba15001f\socket2-0.4.9\src\lib.rs C:\Users\amcco\.cargo\registry\src\index.crates.io-6f17d22bba15001f\socket2-0.4.9\src\sockaddr.rs C:\Users\amcco\.cargo\registry\src\index.crates.io-6f17d22bba15001f\socket2-0.4.9\src\socket.rs C:\Users\amcco\.cargo\registry\src\index.crates.io-6f17d22bba15001f\socket2-0.4.9\src\sockref.rs C:\Users\amcco\.cargo\registry\src\index.crates.io-6f17d22bba15001f\socket2-0.4.9\src\sys\windows.rs
+
+D:\Workspaces\Rust\fpl-demo\fpl-api-server\target\debug\deps\socket2-1eb6637757303fac.d: C:\Users\amcco\.cargo\registry\src\index.crates.io-6f17d22bba15001f\socket2-0.4.9\src\lib.rs C:\Users\amcco\.cargo\registry\src\index.crates.io-6f17d22bba15001f\socket2-0.4.9\src\sockaddr.rs C:\Users\amcco\.cargo\registry\src\index.crates.io-6f17d22bba15001f\socket2-0.4.9\src\socket.rs C:\Users\amcco\.cargo\registry\src\index.crates.io-6f17d22bba15001f\socket2-0.4.9\src\sockref.rs C:\Users\amcco\.cargo\registry\src\index.crates.io-6f17d22bba15001f\socket2-0.4.9\src\sys\windows.rs
+
+C:\Users\amcco\.cargo\registry\src\index.crates.io-6f17d22bba15001f\socket2-0.4.9\src\lib.rs:
+C:\Users\amcco\.cargo\registry\src\index.crates.io-6f17d22bba15001f\socket2-0.4.9\src\sockaddr.rs:
+C:\Users\amcco\.cargo\registry\src\index.crates.io-6f17d22bba15001f\socket2-0.4.9\src\socket.rs:
+C:\Users\amcco\.cargo\registry\src\index.crates.io-6f17d22bba15001f\socket2-0.4.9\src\sockref.rs:
+C:\Users\amcco\.cargo\registry\src\index.crates.io-6f17d22bba15001f\socket2-0.4.9\src\sys\windows.rs:
