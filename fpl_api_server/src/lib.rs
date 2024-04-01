@@ -86,5 +86,6 @@ mod tests {
 
         assert_eq!(teams.len(), 20);
         assert_eq!(teams[0].name, "Arsenal");
+        assert_eq!(teams[0].short_name, "ARS");
     }
 }

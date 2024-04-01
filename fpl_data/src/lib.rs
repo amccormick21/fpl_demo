@@ -17,8 +17,6 @@ pub mod fpl_data {
         pub code: u64,
         pub name: String,
         pub short_name: String,
-        // pub team_division: u32,
-        // pub form: i32,
         pub pulse_id: u32,
         pub strength: u32,
         pub played: u32,
@@ -27,7 +25,12 @@ pub mod fpl_data {
         pub loss: u32,
         pub points: u32,
         pub position: u32,
-        pub strengths: FplTeamStrength,
+        pub strength_overall_home: u32,
+        pub strength_overall_away: u32,
+        pub strength_attack_home: u32,
+        pub strength_attack_away: u32,
+        pub strength_defence_home: u32,
+        pub strength_defence_away: u32,
     }
 }
 
