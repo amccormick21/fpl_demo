@@ -146,10 +146,10 @@ mod fpl_conversions {
                 goals_scored: api_player.goals_scored,
                 assists: api_player.assists,
                 clean_sheets: api_player.clean_sheets,
-                expected_goals: api_player.expected_goals,
-                expected_assists: api_player.expected_assists,
-                expected_goal_involvements: api_player.expected_goal_involvements,
-                expected_clean_sheets: api_player.expected_goals_conceded,
+                expected_goals: api_player.expected_goals.parse().expect("Expected goals was not a number"),
+                expected_assists: api_player.expected_assists.parse().expect("Expected assists was not a number"),
+                expected_goal_involvements: api_player.expected_goal_involvements.parse().expect("Expected goal involvements was not a number"),
+                expected_clean_sheets: api_player.expected_goals_conceded.parse().expect("Expected goals conceded was not a number"),
             },
         })
     }
