@@ -216,7 +216,7 @@ mod tests {
             .map(|player| fpl_conversions::convert_player(player).expect("Failed to convert player"))
             .collect();
 
-        assert_eq!(players[3].name.display_name, "Gabriel");
+        assert_eq!(players[3].name.display_name, "Fábio Vieira");
     }
 
     #[tokio::test]
