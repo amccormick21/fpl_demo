@@ -11,3 +11,4 @@ serde = {version="1.0.188", features=["derive"]}
 serde_json = "1.0.107"
 tokio = { version = "1.32.0", features = ["full"] }
 fpl_data = { version = "0.1.0", path = "../fpl_data" }
+approx = "0.5"
