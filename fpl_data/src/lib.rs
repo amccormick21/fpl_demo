@@ -114,6 +114,21 @@ pub mod fpl_data {
         pub starts_per_90: f64,
         pub clean_sheets_per_90: f64,
     }
+
+    #[derive(Serialize, Deserialize, Debug)]
+    pub struct FplApiPosition {
+        pub id: u32,
+        pub plural_name: String,
+        pub plural_name_short: String,
+        pub singular_name: String,
+        pub singular_name_short: String,
+        pub squad_select: u32,
+        pub squad_min_play: u32,
+        pub squad_max_play: u32,
+        pub ui_shirt_specific: bool,
+        pub sub_positions_locked: Vec<u32>,
+        pub element_count: u32,
+    }
 }
 
 #[cfg(test)]

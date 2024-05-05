@@ -40,6 +40,22 @@ pub async fn get_players() -> Result<Vec<serde_json::Value>, &'static str> {
     }
 }
 
+pub async fn get_positions() -> Result<Vec<serde_json::Value>, &'static str> {
+    let all_data = get_all_data()
+        .await
+        .expect("Failed to get all data from API call");
+
+    if let serde_json::Value::Object(object_data) = all_data {
+        if let serde_json::Value::Array(positions_list) = &object_data["element_types"] {
+            Ok(positions_list.to_vec())
+        } else {
+            Err("Expected positions to be a json array")
+        }
+    } else {
+        Err("Expected all data to be a json object")
+    }
+}
+
 pub async fn get_player_count() -> Result<usize, &'static str> {
     let all_data = get_all_data()
         .await
@@ -98,20 +114,17 @@ mod fpl_players {
         fn nineties(&self) -> f64 {
             self.minutes as f64 / 90.0
         }
-        
+
         pub fn get_stats_per_90(&self) -> FplPlayerStatsPer90 {
             let nineties = self.nineties();
-            if nineties == 0.0
-            {
+            if nineties == 0.0 {
                 FplPlayerStatsPer90 {
                     starts: 0.0,
                     goals: 0.0,
                     goals_conceded: 0.0,
-                    clean_sheets: 0.0
+                    clean_sheets: 0.0,
                 }
-            }
-            else
-            {
+            } else {
                 FplPlayerStatsPer90 {
                     starts: self.starts as f64 / nineties,
                     goals: self.goals_scored as f64 / nineties,
@@ -129,48 +142,67 @@ mod fpl_players {
         pub goals_conceded: f64,
         pub clean_sheets: f64,
     }
-    
+
     impl approx::AbsDiffEq for FplPlayerStatsPer90 {
         type Epsilon = f64;
-    
+
         fn default_epsilon() -> Self::Epsilon {
             f64::default_epsilon()
         }
-    
+
         fn abs_diff_eq(&self, other: &Self, epsilon: Self::Epsilon) -> bool {
-            f64::abs_diff_eq(&self.starts, &other.starts, epsilon) &&
-            f64::abs_diff_eq(&self.goals, &other.goals, epsilon) &&
-            f64::abs_diff_eq(&self.goals_conceded, &other.goals_conceded, epsilon) &&
-            f64::abs_diff_eq(&self.clean_sheets, &other.clean_sheets, epsilon)
+            f64::abs_diff_eq(&self.starts, &other.starts, epsilon)
+                && f64::abs_diff_eq(&self.goals, &other.goals, epsilon)
+                && f64::abs_diff_eq(&self.goals_conceded, &other.goals_conceded, epsilon)
+                && f64::abs_diff_eq(&self.clean_sheets, &other.clean_sheets, epsilon)
         }
     }
-    
+
     impl approx::RelativeEq for FplPlayerStatsPer90 {
         fn default_max_relative() -> Self::Epsilon {
             f64::default_max_relative()
         }
-    
-        fn relative_eq(&self, other: &Self, epsilon: Self::Epsilon, max_relative: Self::Epsilon) -> bool {
-            f64::relative_eq(&self.starts, &other.starts, epsilon, max_relative) &&
-            f64::relative_eq(&self.goals, &other.goals, epsilon, max_relative) &&
-            f64::relative_eq(&self.goals_conceded, &other.goals_conceded, epsilon, max_relative) &&
-            f64::relative_eq(&self.clean_sheets, &other.clean_sheets, epsilon, max_relative)
+
+        fn relative_eq(
+            &self,
+            other: &Self,
+            epsilon: Self::Epsilon,
+            max_relative: Self::Epsilon,
+        ) -> bool {
+            f64::relative_eq(&self.starts, &other.starts, epsilon, max_relative)
+                && f64::relative_eq(&self.goals, &other.goals, epsilon, max_relative)
+                && f64::relative_eq(
+                    &self.goals_conceded,
+                    &other.goals_conceded,
+                    epsilon,
+                    max_relative,
+                )
+                && f64::relative_eq(
+                    &self.clean_sheets,
+                    &other.clean_sheets,
+                    epsilon,
+                    max_relative,
+                )
         }
     }
-    
+
     impl approx::UlpsEq for FplPlayerStatsPer90 {
         fn default_max_ulps() -> u32 {
             f64::default_max_ulps()
         }
-    
+
         fn ulps_eq(&self, other: &Self, epsilon: Self::Epsilon, max_ulps: u32) -> bool {
-            f64::ulps_eq(&self.starts, &other.starts, epsilon, max_ulps) &&
-            f64::ulps_eq(&self.goals, &other.goals, epsilon, max_ulps) &&
-            f64::ulps_eq(&self.goals_conceded, &other.goals_conceded, epsilon, max_ulps) &&
-            f64::ulps_eq(&self.clean_sheets, &other.clean_sheets, epsilon, max_ulps)
+            f64::ulps_eq(&self.starts, &other.starts, epsilon, max_ulps)
+                && f64::ulps_eq(&self.goals, &other.goals, epsilon, max_ulps)
+                && f64::ulps_eq(
+                    &self.goals_conceded,
+                    &other.goals_conceded,
+                    epsilon,
+                    max_ulps,
+                )
+                && f64::ulps_eq(&self.clean_sheets, &other.clean_sheets, epsilon, max_ulps)
         }
     }
-    
 
     #[derive(Debug, PartialEq)]
     pub struct FplPlayerExpectations {
@@ -236,9 +268,52 @@ mod fpl_teams {
     }
 }
 
+mod fpl_positions {
+
+    #[derive(Debug, PartialEq)]
+    pub enum Position {
+        GK(FplPosition),
+        DEF(FplPosition),
+        MID(FplPosition),
+        FWD(FplPosition),
+    }
+
+    #[derive(Debug, PartialEq)]
+    pub struct FplPosition {
+        pub id: u32,
+        pub squad_select: u32,
+        pub squad_min_play: u32,
+        pub squad_max_play: u32,
+        pub element_count: u32,
+    }
+}
+
 mod fpl_conversions {
     use crate::fpl_players;
     use crate::fpl_teams;
+    use crate::fpl_positions;
+
+    pub fn convert_position(json_position: &serde_json::Value) -> Result<fpl_positions::Position, &str> {
+        let api_position: fpl_data::fpl_data::FplApiPosition =
+            serde_json::from_value(json_position.clone()).expect("Failed to convert position");
+    
+        let fpl_position = fpl_positions::FplPosition{
+            id: api_position.id,
+            squad_select: api_position.squad_select,
+            squad_min_play: api_position.squad_min_play,
+            squad_max_play: api_position.squad_max_play,
+            element_count: api_position.element_count
+        };
+
+        match api_position.id {
+            1 => Ok(fpl_positions::Position::GK(fpl_position)),
+            2 => Ok(fpl_positions::Position::DEF(fpl_position)),
+            3 => Ok(fpl_positions::Position::MID(fpl_position)),
+            4 => Ok(fpl_positions::Position::FWD(fpl_position)),
+            _ => Err("Unexpected position ID, could not map to a position GK/DEF/MID/FWD")
+        }
+    }
+
 
     pub fn convert_player(json_player: &serde_json::Value) -> Result<fpl_players::FplPlayer, &str> {
         let api_player: fpl_data::fpl_data::FplApiPlayer =
@@ -355,6 +430,30 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_get_positions() {
+        let json_positions = get_positions().await.expect("Failed to get positions");
+
+        let positions: Vec<fpl_positions::Position> = json_positions
+            .iter()
+            .map(|position| {
+                fpl_conversions::convert_position(position).expect("Failed to convert position")
+            })
+            .collect();
+
+        if let fpl_positions::Position::GK(position_data) = &positions[0] {
+            assert_eq!(position_data.id, 1);
+        } else {
+            assert!(false);
+        }
+        if let fpl_positions::Position::DEF(position_data) = &positions[1] {
+            assert_eq!(position_data.id, 2);
+        } else {
+            assert!(false);
+        }
+
+    }
+
+    #[tokio::test]
     async fn test_get_players() {
         let json_players = get_players().await.expect("Failed to get players");
 
@@ -385,7 +484,7 @@ mod tests {
             let player = &players[player_idx];
             let calculated_stats = player.get_stats_per_90();
 
-            assert_relative_eq!(player.stats_per_90, calculated_stats, epsilon=1e-2);
+            assert_relative_eq!(player.stats_per_90, calculated_stats, epsilon = 1e-2);
         }
     }
 
