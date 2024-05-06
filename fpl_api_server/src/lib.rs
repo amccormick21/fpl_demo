@@ -1,93 +1,3 @@
-use reqwest;
-
-pub async fn get_all_data() -> Result<serde_json::Value, reqwest::Error> {
-    let request_url = format!("https://fantasy.premierleague.com/api/bootstrap-static/");
-    let response = reqwest::get(&request_url).await?;
-
-    // Return the reponse directly
-    response.json().await
-}
-
-pub async fn get_events() -> Result<Vec<serde_json::Value>, &'static str> {
-    let all_data = get_all_data()
-        .await
-        .expect("Failed to get data from API call");
-
-    if let serde_json::Value::Object(object_data) = all_data {
-        if let serde_json::Value::Array(events_list) = &object_data["events"] {
-            Ok(events_list.to_vec())
-        } else {
-            Err("Expected events to be a json array")
-        }
-    } else {
-        Err("Expected all data to be a json object")
-    }
-}
-
-pub async fn get_players() -> Result<Vec<serde_json::Value>, &'static str> {
-    let all_data = get_all_data()
-        .await
-        .expect("Failed to get all data from API call");
-
-    if let serde_json::Value::Object(object_data) = all_data {
-        if let serde_json::Value::Array(players_list) = &object_data["elements"] {
-            Ok(players_list.to_vec())
-        } else {
-            Err("Expected players to be a json array")
-        }
-    } else {
-        Err("Expected all data to be a json object")
-    }
-}
-
-pub async fn get_positions() -> Result<Vec<serde_json::Value>, &'static str> {
-    let all_data = get_all_data()
-        .await
-        .expect("Failed to get all data from API call");
-
-    if let serde_json::Value::Object(object_data) = all_data {
-        if let serde_json::Value::Array(positions_list) = &object_data["element_types"] {
-            Ok(positions_list.to_vec())
-        } else {
-            Err("Expected positions to be a json array")
-        }
-    } else {
-        Err("Expected all data to be a json object")
-    }
-}
-
-pub async fn get_player_count() -> Result<usize, &'static str> {
-    let all_data = get_all_data()
-        .await
-        .expect("Failed to get all data from API call");
-
-    if let serde_json::Value::Object(object_data) = all_data {
-        if let serde_json::Value::Number(player_count) = &object_data["total_players"] {
-            Ok(player_count.as_u64().unwrap() as usize)
-        } else {
-            Err("Expected total_players to be a number")
-        }
-    } else {
-        Err("Expected all data to be a json object")
-    }
-}
-
-pub async fn get_teams() -> Result<Vec<serde_json::Value>, &'static str> {
-    let all_data = get_all_data()
-        .await
-        .expect("Failed to get all data from API call");
-
-    if let serde_json::Value::Object(object_data) = all_data {
-        if let serde_json::Value::Array(events_list) = &object_data["teams"] {
-            Ok(events_list.to_vec())
-        } else {
-            Err("Expected teams to be a json array")
-        }
-    } else {
-        Err("Expected all data to be a json object")
-    }
-}
-
 mod fpl_players {
     #[derive(Debug, PartialEq)]
     pub struct FplPlayerName {
@@ -293,9 +203,7 @@ mod fpl_conversions {
     use crate::fpl_teams;
     use crate::fpl_positions;
 
-    pub fn convert_position(json_position: &serde_json::Value) -> Result<fpl_positions::Position, &str> {
-        let api_position: fpl_data::fpl_data::FplApiPosition =
-            serde_json::from_value(json_position.clone()).expect("Failed to convert position");
+    pub fn convert_position(api_position: &fpl_data::fpl_data::FplApiPosition) -> Result<fpl_positions::Position, &'static str> {
     
         let fpl_position = fpl_positions::FplPosition{
             id: api_position.id,
@@ -315,16 +223,14 @@ mod fpl_conversions {
     }
 
 
-    pub fn convert_player(json_player: &serde_json::Value) -> Result<fpl_players::FplPlayer, &str> {
-        let api_player: fpl_data::fpl_data::FplApiPlayer =
-            serde_json::from_value(json_player.clone()).expect("Failed to convert player");
+    pub fn convert_player(api_player: &fpl_data::fpl_data::FplApiPlayer) -> fpl_players::FplPlayer {
 
-        Ok(fpl_players::FplPlayer {
+        fpl_players::FplPlayer {
             id: api_player.id,
             name: fpl_players::FplPlayerName {
-                first_name: api_player.first_name,
-                second_name: api_player.second_name,
-                display_name: api_player.web_name,
+                first_name: api_player.first_name.clone(),
+                second_name: api_player.second_name.clone(),
+                display_name: api_player.web_name.clone(),
             },
             stats: fpl_players::FplPlayerStats {
                 minutes: api_player.minutes,
@@ -375,17 +281,15 @@ mod fpl_conversions {
                 bps: api_player.bps,
                 event_points: api_player.event_points,
             },
-        })
+        }
     }
 
-    pub fn convert_team(json_team: &serde_json::Value) -> Result<fpl_teams::FplTeam, &str> {
-        let api_team: fpl_data::fpl_data::FplApiTeam =
-            serde_json::from_value(json_team.clone()).expect("Failed to convert team");
+    pub fn convert_team(api_team: &fpl_data::fpl_data::FplApiTeam) -> Result<fpl_teams::FplTeam, &str> {
 
         Ok(fpl_teams::FplTeam {
             id: api_team.id,
-            name: api_team.name,
-            short_name: api_team.short_name,
+            name: api_team.name.clone(),
+            short_name: api_team.short_name.clone(),
             table_data: fpl_teams::FplTeamTableData {
                 played: api_team.played,
                 win: api_team.win,
@@ -410,30 +314,15 @@ mod fpl_conversions {
 mod tests {
 
     use approx::assert_relative_eq;
+    use fpl_data::fpl_data;
 
     use super::*;
 
     #[tokio::test]
-    async fn test_get_data() {
-        let _ = get_all_data().await;
-    }
-
-    #[tokio::test]
-    async fn test_get_events() {
-        let events = get_events().await.expect("Failed to get events");
-
-        if let Some(serde_json::Value::Object(first_event)) = events.first() {
-            if let serde_json::Value::String(event_name) = &first_event["name"] {
-                assert_eq!(event_name, "Gameweek 1");
-            }
-        }
-    }
-
-    #[tokio::test]
     async fn test_get_positions() {
-        let json_positions = get_positions().await.expect("Failed to get positions");
+        let api_positions = fpl_data::get_positions().await.expect("Failed to get positions");
 
-        let positions: Vec<fpl_positions::Position> = json_positions
+        let positions: Vec<fpl_positions::Position> = api_positions
             .iter()
             .map(|position| {
                 fpl_conversions::convert_position(position).expect("Failed to convert position")
@@ -455,12 +344,12 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_players() {
-        let json_players = get_players().await.expect("Failed to get players");
+        let api_players = fpl_data::get_players().await.expect("Failed to get players");
 
-        let players: Vec<fpl_players::FplPlayer> = json_players
+        let players: Vec<fpl_players::FplPlayer> = api_players
             .iter()
             .map(|player| {
-                fpl_conversions::convert_player(player).expect("Failed to convert player")
+                fpl_conversions::convert_player(player)
             })
             .collect();
 
@@ -469,19 +358,14 @@ mod tests {
 
     #[tokio::test]
     async fn test_stats_per_90() {
-        let json_players = get_players().await.expect("Failed to get players");
-
-        let players: Vec<fpl_players::FplPlayer> = json_players
-            .iter()
-            .map(|player| {
-                fpl_conversions::convert_player(player).expect("Failed to convert player")
-            })
-            .collect();
+        let api_players = fpl_data::get_players().await.expect("Failed to get players");
+        let player_indices = vec![0, 10, 25, 50];
 
         // Get the indices of players we want to review
-        let player_indices = vec![0, 10, 25, 50];
         for player_idx in player_indices {
-            let player = &players[player_idx];
+            let api_player = &api_players[player_idx];
+
+            let player = fpl_conversions::convert_player(api_player);
             let calculated_stats = player.get_stats_per_90();
 
             assert_relative_eq!(player.stats_per_90, calculated_stats, epsilon = 1e-2);
@@ -490,7 +374,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_teams() {
-        let json_teams = get_teams().await.expect("Failed to get teams");
+        let json_teams = fpl_data::get_teams().await.expect("Failed to get teams");
 
         let teams: Vec<fpl_teams::FplTeam> = json_teams
             .iter()

@@ -1,5 +1,111 @@
 pub mod fpl_data {
+    use reqwest;
     use serde::{Deserialize, Serialize};
+
+    fn convert_vec_to_generic<F, T>(values: &Vec<serde_json::Value>, conversion_fn: F) -> Vec<T>
+    where
+        T: Serialize + Deserialize<'static>, // 'static lifetime for simplicity
+        F: Fn(&serde_json::Value) -> T,
+    {
+        values.into_iter().map(conversion_fn).collect()
+    }
+
+    pub async fn get_all_data() -> Result<serde_json::Value, reqwest::Error> {
+        let request_url = format!("https://fantasy.premierleague.com/api/bootstrap-static/");
+        let response = reqwest::get(&request_url).await?;
+
+        // Return the reponse directly
+        response.json().await
+    }
+
+    pub async fn get_events() -> Result<Vec<serde_json::Value>, &'static str> {
+        let all_data = get_all_data()
+            .await
+            .expect("Failed to get data from API call");
+
+        if let serde_json::Value::Object(object_data) = all_data {
+            if let serde_json::Value::Array(events_list) = &object_data["events"] {
+                Ok(events_list.to_vec())
+            } else {
+                Err("Expected events to be a json array")
+            }
+        } else {
+            Err("Expected all data to be a json object")
+        }
+    }
+
+    pub async fn get_players() -> Result<Vec<FplApiPlayer>, &'static str> {
+        let all_data = get_all_data()
+            .await
+            .expect("Failed to get all data from API call");
+
+        if let serde_json::Value::Object(object_data) = all_data {
+            if let serde_json::Value::Array(players_list) = &object_data["elements"] {
+                let player_conversion = |json_value: &serde_json::Value| -> FplApiPlayer {
+                    serde_json::from_value(json_value.clone()).expect("Failed to convert player")
+                };
+                Ok(convert_vec_to_generic(&players_list, player_conversion))
+            } else {
+                Err("Expected players to be a json array")
+            }
+        } else {
+            Err("Expected all data to be a json object")
+        }
+    }
+
+    pub async fn get_positions() -> Result<Vec<FplApiPosition>, &'static str> {
+        let all_data = get_all_data()
+            .await
+            .expect("Failed to get all data from API call");
+
+        if let serde_json::Value::Object(object_data) = all_data {
+            if let serde_json::Value::Array(positions_list) = &object_data["element_types"] {
+                let position_conversion = |json_value: &serde_json::Value| -> FplApiPosition {
+                    serde_json::from_value(json_value.clone()).expect("Failed to convert position")
+                };
+                Ok(convert_vec_to_generic(&positions_list, position_conversion))
+            } else {
+                Err("Expected positions to be a json array")
+            }
+        } else {
+            Err("Expected all data to be a json object")
+        }
+    }
+
+    pub async fn get_player_count() -> Result<usize, &'static str> {
+        let all_data = get_all_data()
+            .await
+            .expect("Failed to get all data from API call");
+
+        if let serde_json::Value::Object(object_data) = all_data {
+            if let serde_json::Value::Number(player_count) = &object_data["total_players"] {
+                Ok(player_count.as_u64().unwrap() as usize)
+            } else {
+                Err("Expected total_players to be a number")
+            }
+        } else {
+            Err("Expected all data to be a json object")
+        }
+    }
+
+    pub async fn get_teams() -> Result<Vec<FplApiTeam>, &'static str> {
+        let all_data = get_all_data()
+            .await
+            .expect("Failed to get all data from API call");
+
+        if let serde_json::Value::Object(object_data) = all_data {
+            if let serde_json::Value::Array(teams_list) = &object_data["teams"] {
+                let team_conversion = |json_value: &serde_json::Value| -> FplApiTeam {
+                    serde_json::from_value(json_value.clone()).expect("Failed to convert team")
+                };
+                Ok(convert_vec_to_generic(&teams_list, team_conversion))
+            } else {
+                Err("Expected teams to be a json array")
+            }
+        } else {
+            Err("Expected all data to be a json object")
+        }
+    }
 
     #[derive(Serialize, Deserialize, Debug)]
     pub struct FplApiTeam {
@@ -133,5 +239,21 @@ pub mod fpl_data {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::fpl_data;
+
+    #[tokio::test]
+    async fn test_get_data() {
+        let _ = fpl_data::get_all_data().await;
+    }
+
+    #[tokio::test]
+    async fn test_get_events() {
+        let events = fpl_data::get_events().await.expect("Failed to get events");
+
+        if let Some(serde_json::Value::Object(first_event)) = events.first() {
+            if let serde_json::Value::String(event_name) = &first_event["name"] {
+                assert_eq!(event_name, "Gameweek 1");
+            }
+        }
+    }
 }
