@@ -198,19 +198,112 @@ mod fpl_positions {
     }
 }
 
-mod fpl_conversions {
-    use crate::fpl_players;
-    use crate::fpl_teams;
-    use crate::fpl_positions;
+mod fpl_fixtures {
+    use chrono::{DateTime, Utc};
+    use std::collections::HashMap;
 
-    pub fn convert_position(api_position: &fpl_data::fpl_data::FplApiPosition) -> Result<fpl_positions::Position, &'static str> {
-    
-        let fpl_position = fpl_positions::FplPosition{
+    use crate::fpl_teams;
+
+    #[derive(Debug)]
+    pub struct MatchScore {
+        pub home: u32,
+        pub away: u32,
+        // TODO: derive result, points, etc.
+    }
+
+    #[derive(Debug)]
+    pub enum MatchStatistic {
+        GoalsScored(i32),
+        Assists(i32),
+        OwnGoals(i32),
+        PenaltiesSaved(i32),
+        PenaltiesMissed(i32),
+        YellowCards(i32),
+        RedCards(i32),
+        Saves(i32),
+        Bonus(i32),
+        Bps(i32),
+    }
+
+    impl MatchStatistic {
+        pub fn from(identifier: &str, data: i32) -> Result<MatchStatistic, &'static str> {
+            match identifier {
+                "goals_scored" => Ok(MatchStatistic::GoalsScored(data)),
+                "assists" => Ok(MatchStatistic::Assists(data)),
+                "own_goals" => Ok(MatchStatistic::OwnGoals(data)),
+                "penalties_saved" => Ok(MatchStatistic::PenaltiesSaved(data)),
+                "penalties_missed" => Ok(MatchStatistic::PenaltiesMissed(data)),
+                "yellow_cards" => Ok(MatchStatistic::YellowCards(data)),
+                "red_cards" => Ok(MatchStatistic::RedCards(data)),
+                "saves" => Ok(MatchStatistic::Saves(data)),
+                "bonus" => Ok(MatchStatistic::Bonus(data)),
+                "bps" => Ok(MatchStatistic::Bps(data)),
+                _ => Err("Could not convert statistic"),
+            }
+        }
+    }
+
+    #[derive(Debug)]
+    pub struct Match {
+        pub code: u32,
+        pub event: u32,
+        pub finished: bool,
+        pub finished_provisional: bool,
+        pub id: u32,
+        pub kickoff_time: DateTime<chrono::Utc>,
+        pub minutes: u32,
+        pub provisional_start_time: bool,
+        pub started: bool,
+        pub home_team_id: u64,
+        pub away_team_id: u64,
+        pub score: Option<MatchScore>, // If the game has not been played then there is no score
+        pub stats: HashMap<u32, Vec<MatchStatistic>>,
+    }
+
+    impl Match {
+        /* TODO:
+        - Get team names (from loaded list of teams??)
+        - Get player points from match */
+        pub fn home_team(self, teams: &Vec<fpl_teams::FplTeam>) -> String {
+            if let Some(team) = teams.iter().find(|&t| {t.id == self.home_team_id} ) {
+                team.name
+            }
+            else {
+                format!("N/A")
+            }
+        }
+
+        pub fn away_team(self, teams: &Vec<fpl_teams::FplTeam>) -> String {
+            if let Some(team) = teams.iter().find(|&t| {t.id == self.away_team_id} ) {
+                team.name
+            }
+            else {
+                format!("N/A")
+            }
+        }
+    }
+}
+
+mod fpl_conversions {
+    use chrono::DateTime;
+    use std::collections::HashMap;
+
+    use crate::fpl_fixtures;
+    use crate::fpl_fixtures::MatchScore;
+    use crate::fpl_fixtures::MatchStatistic;
+    use crate::fpl_players;
+    use crate::fpl_positions;
+    use crate::fpl_teams;
+
+    pub fn convert_position(
+        api_position: &fpl_data::fpl_data::FplApiPosition,
+    ) -> Result<fpl_positions::Position, &'static str> {
+        let fpl_position = fpl_positions::FplPosition {
             id: api_position.id,
             squad_select: api_position.squad_select,
             squad_min_play: api_position.squad_min_play,
             squad_max_play: api_position.squad_max_play,
-            element_count: api_position.element_count
+            element_count: api_position.element_count,
         };
 
         match api_position.id {
@@ -218,13 +311,11 @@ mod fpl_conversions {
             2 => Ok(fpl_positions::Position::DEF(fpl_position)),
             3 => Ok(fpl_positions::Position::MID(fpl_position)),
             4 => Ok(fpl_positions::Position::FWD(fpl_position)),
-            _ => Err("Unexpected position ID, could not map to a position GK/DEF/MID/FWD")
+            _ => Err("Unexpected position ID, could not map to a position GK/DEF/MID/FWD"),
         }
     }
 
-
     pub fn convert_player(api_player: &fpl_data::fpl_data::FplApiPlayer) -> fpl_players::FplPlayer {
-
         fpl_players::FplPlayer {
             id: api_player.id,
             name: fpl_players::FplPlayerName {
@@ -284,8 +375,9 @@ mod fpl_conversions {
         }
     }
 
-    pub fn convert_team(api_team: &fpl_data::fpl_data::FplApiTeam) -> Result<fpl_teams::FplTeam, &str> {
-
+    pub fn convert_team(
+        api_team: &fpl_data::fpl_data::FplApiTeam,
+    ) -> Result<fpl_teams::FplTeam, &str> {
         Ok(fpl_teams::FplTeam {
             id: api_team.id,
             name: api_team.name.clone(),
@@ -308,6 +400,53 @@ mod fpl_conversions {
             },
         })
     }
+
+    pub fn convert_fixture(
+        api_fixture: &fpl_data::fpl_data::FplApiFixture,
+    ) -> Result<fpl_fixtures::Match, &str> {
+        
+        let match_score = if let (Some(home_score), Some(away_score)) = (api_fixture.team_h_score, api_fixture.team_a_score) {
+            Some(MatchScore {
+                home: home_score,
+                away: away_score
+            })
+        } else {
+            None
+        };
+
+        let mut match_stats: HashMap<u32, Vec<MatchStatistic>> = HashMap::new();
+
+        api_fixture.stats.iter().for_each(|stat| {
+            stat.h.iter().for_each(|player_id| {
+                match_stats.entry(player_id.element).or_insert_with(Vec::new).push(
+                    MatchStatistic::from(&stat.identifier, player_id.value).expect("Could not convert statistic for home player")
+                )
+            });
+            stat.a.iter().for_each(|player_id| {
+                match_stats.entry(player_id.element).or_insert_with(Vec::new).push(
+                    MatchStatistic::from(&stat.identifier, player_id.value).expect("Could not convert statistic for away player")
+                )
+            });
+        });
+        
+        Ok(fpl_fixtures::Match {
+            code: api_fixture.code,
+            event: api_fixture.event,
+            finished: api_fixture.finished,
+            finished_provisional: api_fixture.finished_provisional,
+            id: api_fixture.id,
+            kickoff_time: DateTime::parse_from_rfc3339(&api_fixture.kickoff_time)
+                .unwrap()
+                .into(),
+            minutes: api_fixture.minutes,
+            provisional_start_time: api_fixture.provisional_start_time,
+            started: api_fixture.started,
+            home_team_id: api_fixture.team_h,
+            away_team_id: api_fixture.team_a,
+            score: match_score,
+            stats: match_stats,
+        })
+    }
 }
 
 #[cfg(test)]
@@ -320,7 +459,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_positions() {
-        let api_positions = fpl_data::get_positions().await.expect("Failed to get positions");
+        let api_positions = fpl_data::get_positions()
+            .await
+            .expect("Failed to get positions");
 
         let positions: Vec<fpl_positions::Position> = api_positions
             .iter()
@@ -339,18 +480,17 @@ mod tests {
         } else {
             assert!(false);
         }
-
     }
 
     #[tokio::test]
     async fn test_get_players() {
-        let api_players = fpl_data::get_players().await.expect("Failed to get players");
+        let api_players = fpl_data::get_players()
+            .await
+            .expect("Failed to get players");
 
         let players: Vec<fpl_players::FplPlayer> = api_players
             .iter()
-            .map(|player| {
-                fpl_conversions::convert_player(player)
-            })
+            .map(|player| fpl_conversions::convert_player(player))
             .collect();
 
         assert_eq!(players[3].name.display_name, "Fábio Vieira");
@@ -358,7 +498,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_stats_per_90() {
-        let api_players = fpl_data::get_players().await.expect("Failed to get players");
+        let api_players = fpl_data::get_players()
+            .await
+            .expect("Failed to get players");
         let player_indices = vec![0, 10, 25, 50];
 
         // Get the indices of players we want to review
@@ -386,5 +528,19 @@ mod tests {
         assert_eq!(teams[0].short_name, "ARS");
 
         assert_eq!(teams[0].table_data.played, 0);
+    }
+
+    #[tokio::test]
+    async fn test_get_fixtures() {
+        let api_fixtures = fpl_data::get_fixtures().await.expect("Failed to get fixtures");
+
+        let fixtures: Vec<fpl_fixtures::Match> = api_fixtures
+            .iter()
+            .map(|api_fixture| fpl_conversions::convert_fixture(api_fixture).expect("Failed to convert fixture"))
+            .collect();
+
+        assert_eq!(fixtures.len(), 19 * 20);
+        assert!(fixtures[0].finished);
+        assert_eq!(fixtures[0].home_team_id, 6);
     }
 }

@@ -10,12 +10,21 @@ pub mod fpl_data {
         values.into_iter().map(conversion_fn).collect()
     }
 
-    pub async fn get_all_data() -> Result<serde_json::Value, reqwest::Error> {
-        let request_url = format!("https://fantasy.premierleague.com/api/bootstrap-static/");
-        let response = reqwest::get(&request_url).await?;
+    async fn api_call(url: &str) -> Result<serde_json::Value, reqwest::Error> {
+        let response = reqwest::get(url).await?;
 
         // Return the reponse directly
         response.json().await
+    }
+
+    pub async fn get_all_data() -> Result<serde_json::Value, reqwest::Error> {
+        let request_url = format!("https://fantasy.premierleague.com/api/bootstrap-static/");
+        api_call(&request_url).await
+    }
+
+    pub async fn get_fixtures_data() -> Result<serde_json::Value, reqwest::Error> {
+        let request_url = format!("https://fantasy.premierleague.com/api/fixtures/");
+        api_call(&request_url).await
     }
 
     pub async fn get_events() -> Result<Vec<serde_json::Value>, &'static str> {
@@ -104,6 +113,21 @@ pub mod fpl_data {
             }
         } else {
             Err("Expected all data to be a json object")
+        }
+    }
+
+    pub async fn get_fixtures() -> Result<Vec<FplApiFixture>, &'static str> {
+        let fixtures_data = get_fixtures_data()
+        .await
+        .expect("Failed to get data from API call");
+
+        if let serde_json::Value::Array(fixtures) = fixtures_data {
+            let fixture_conversion = |json_value: &serde_json::Value| -> FplApiFixture {
+                serde_json::from_value(json_value.clone()).expect("Failed to convert fixtures")
+            };
+            Ok(convert_vec_to_generic(&fixtures, fixture_conversion))
+        } else {
+            Err("Expected fixtures to be a json array")
         }
     }
 
@@ -234,6 +258,37 @@ pub mod fpl_data {
         pub ui_shirt_specific: bool,
         pub sub_positions_locked: Vec<u32>,
         pub element_count: u32,
+    }
+
+    #[derive(Debug, Serialize, Deserialize)]
+    pub struct FplApiFixturePlayerStat {
+        pub value: i32,
+        pub element: u32, // Player (element) id
+    }
+        
+    #[derive(Debug, Serialize, Deserialize)]
+    pub struct FplApiFixtureStats {
+        pub identifier: String,
+        pub a: Vec<FplApiFixturePlayerStat>, // Away team
+        pub h: Vec<FplApiFixturePlayerStat>, // Home team
+    }
+
+    #[derive(Debug, Serialize, Deserialize)]
+    pub struct FplApiFixture {
+        pub code: u32,
+        pub event: u32,
+        pub finished: bool,
+        pub finished_provisional: bool,
+        pub id: u32,
+        pub kickoff_time: String,
+        pub minutes: u32,
+        pub provisional_start_time: bool,
+        pub started: bool,
+        pub team_a: u64,
+        pub team_a_score: Option<u64>,
+        pub team_h: u64,
+        pub team_h_score: Option<u32>,
+        pub stats: Vec<FplApiFixtureStats>,
     }
 }
 
