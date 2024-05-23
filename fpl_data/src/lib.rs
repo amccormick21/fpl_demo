@@ -51,7 +51,7 @@ pub mod fpl_data {
         if let serde_json::Value::Object(object_data) = all_data {
             if let serde_json::Value::Array(players_list) = &object_data["elements"] {
                 let player_conversion = |json_value: &serde_json::Value| -> FplApiPlayer {
-                    serde_json::from_value(json_value.clone()).expect("Failed to convert player")
+                    serde_json::from_value(json_value.clone()).expect(format!("Failed to convert player {0}", json_value).as_str())
                 };
                 Ok(convert_vec_to_generic(&players_list, player_conversion))
             } else {
@@ -164,8 +164,8 @@ pub mod fpl_data {
         pub cost_change_start_fall: i32,
         pub dreamteam_count: u32,
         pub element_type: u32,
-        pub ep_next: String,
-        pub ep_this: String,
+        pub ep_next: Option<String>,
+        pub ep_this: Option<String>,
         pub event_points: i32,
         pub first_name: String,
         pub form: String,
@@ -285,7 +285,7 @@ pub mod fpl_data {
         pub provisional_start_time: bool,
         pub started: bool,
         pub team_a: u64,
-        pub team_a_score: Option<u64>,
+        pub team_a_score: Option<u32>,
         pub team_h: u64,
         pub team_h_score: Option<u32>,
         pub stats: Vec<FplApiFixtureStats>,
