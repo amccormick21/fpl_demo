@@ -2,10 +2,10 @@ pub mod fpl_data {
     use reqwest;
     use serde::{Deserialize, Serialize};
 
-    fn convert_vec_to_generic<F, T>(values: &Vec<serde_json::Value>, conversion_fn: F) -> Vec<T>
+    fn convert_vec_to_generic<F, T>(values: Vec<serde_json::Value>, conversion_fn: F) -> Vec<T>
     where
         T: Serialize + Deserialize<'static>, // 'static lifetime for simplicity
-        F: Fn(&serde_json::Value) -> T,
+        F: Fn(serde_json::Value) -> T,
     {
         values.into_iter().map(conversion_fn).collect()
     }
@@ -48,12 +48,12 @@ pub mod fpl_data {
             .await
             .expect("Failed to get all data from API call");
 
-        if let serde_json::Value::Object(object_data) = all_data {
-            if let serde_json::Value::Array(players_list) = &object_data["elements"] {
-                let player_conversion = |json_value: &serde_json::Value| -> FplApiPlayer {
-                    serde_json::from_value(json_value.clone()).expect(format!("Failed to convert player {0}", json_value).as_str())
+        if let serde_json::Value::Object(mut object_data) = all_data {
+            if let Some(serde_json::Value::Array(players_list)) = object_data.remove("elements") {
+                let player_conversion = |json_value: serde_json::Value| -> FplApiPlayer {
+                    serde_json::from_value(json_value).expect("Failed to convert player")
                 };
-                Ok(convert_vec_to_generic(&players_list, player_conversion))
+                Ok(convert_vec_to_generic(players_list, player_conversion))
             } else {
                 Err("Expected players to be a json array")
             }
@@ -67,12 +67,12 @@ pub mod fpl_data {
             .await
             .expect("Failed to get all data from API call");
 
-        if let serde_json::Value::Object(object_data) = all_data {
-            if let serde_json::Value::Array(positions_list) = &object_data["element_types"] {
-                let position_conversion = |json_value: &serde_json::Value| -> FplApiPosition {
-                    serde_json::from_value(json_value.clone()).expect("Failed to convert position")
+        if let serde_json::Value::Object(mut object_data) = all_data {
+            if let Some(serde_json::Value::Array(positions_list)) = object_data.remove("element_types") {
+                let position_conversion = |json_value: serde_json::Value| -> FplApiPosition {
+                    serde_json::from_value(json_value).expect("Failed to convert position")
                 };
-                Ok(convert_vec_to_generic(&positions_list, position_conversion))
+                Ok(convert_vec_to_generic(positions_list, position_conversion))
             } else {
                 Err("Expected positions to be a json array")
             }
@@ -102,12 +102,12 @@ pub mod fpl_data {
             .await
             .expect("Failed to get all data from API call");
 
-        if let serde_json::Value::Object(object_data) = all_data {
-            if let serde_json::Value::Array(teams_list) = &object_data["teams"] {
-                let team_conversion = |json_value: &serde_json::Value| -> FplApiTeam {
-                    serde_json::from_value(json_value.clone()).expect("Failed to convert team")
+        if let serde_json::Value::Object(mut object_data) = all_data {
+            if let Some(serde_json::Value::Array(teams_list)) = object_data.remove("teams") {
+                let team_conversion = |json_value: serde_json::Value| -> FplApiTeam {
+                    serde_json::from_value(json_value).expect("Failed to convert team")
                 };
-                Ok(convert_vec_to_generic(&teams_list, team_conversion))
+                Ok(convert_vec_to_generic(teams_list, team_conversion))
             } else {
                 Err("Expected teams to be a json array")
             }
@@ -122,10 +122,10 @@ pub mod fpl_data {
         .expect("Failed to get data from API call");
 
         if let serde_json::Value::Array(fixtures) = fixtures_data {
-            let fixture_conversion = |json_value: &serde_json::Value| -> FplApiFixture {
-                serde_json::from_value(json_value.clone()).expect("Failed to convert fixtures")
+            let fixture_conversion = |json_value: serde_json::Value| -> FplApiFixture {
+                serde_json::from_value(json_value).expect("Failed to convert fixtures")
             };
-            Ok(convert_vec_to_generic(&fixtures, fixture_conversion))
+            Ok(convert_vec_to_generic(fixtures, fixture_conversion))
         } else {
             Err("Expected fixtures to be a json array")
         }
