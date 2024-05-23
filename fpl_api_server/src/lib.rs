@@ -1,4 +1,6 @@
 mod fpl_players {
+    use crate::fpl_positions;
+
     #[derive(Debug, PartialEq)]
     pub struct FplPlayerName {
         pub first_name: String,
@@ -134,6 +136,7 @@ mod fpl_players {
     pub struct FplPlayer {
         pub id: u32,
         pub name: FplPlayerName,
+        pub position: fpl_positions::Position,
         pub stats: FplPlayerStats,
         pub stats_per_90: FplPlayerStatsPer90,
         pub expected_stats: FplPlayerExpectations,
@@ -180,12 +183,28 @@ mod fpl_teams {
 
 mod fpl_positions {
 
+    use std::convert::TryFrom;
+
     #[derive(Debug, PartialEq)]
     pub enum Position {
-        GK(FplPosition),
-        DEF(FplPosition),
-        MID(FplPosition),
-        FWD(FplPosition),
+        GK,
+        DEF,
+        MID,
+        FWD,
+    }
+
+    impl TryFrom<u32> for Position {
+        type Error = ();
+    
+        fn try_from(v: u32) -> Result<Self, Self::Error> {
+            match v {
+                x if x == Position::GK as u32 => Ok(Position::GK),
+                x if x == Position::DEF as u32 => Ok(Position::DEF),
+                x if x == Position::MID as u32 => Ok(Position::MID),
+                x if x == Position::FWD as u32 => Ok(Position::FWD),
+                _ => Err(()),
+            }
+        }
     }
 
     #[derive(Debug, PartialEq)]
@@ -195,6 +214,113 @@ mod fpl_positions {
         pub squad_min_play: u32,
         pub squad_max_play: u32,
         pub element_count: u32,
+        pub position: Position
+    }
+}
+
+mod fpl_match_stats {
+
+    use crate::fpl_positions;
+
+    #[derive(Debug)]
+    pub enum MatchStatistic {
+        GoalsScored,
+        Assists,
+        OwnGoals,
+        PenaltiesSaved,
+        PenaltiesMissed,
+        YellowCards,
+        RedCards,
+        Saves,
+        Bonus,
+        Bps,
+        Minutes,
+    }
+
+    impl MatchStatistic {
+        pub fn from(identifier: &str) -> Result<MatchStatistic, &'static str> {
+            
+            match identifier {
+                "goals_scored" => Ok(MatchStatistic::GoalsScored),
+                "assists" => Ok(MatchStatistic::Assists),
+                "own_goals" => Ok(MatchStatistic::OwnGoals),
+                "penalties_saved" => Ok(MatchStatistic::PenaltiesSaved),
+                "penalties_missed" => Ok(MatchStatistic::PenaltiesMissed),
+                "yellow_cards" => Ok(MatchStatistic::YellowCards),
+                "red_cards" => Ok(MatchStatistic::RedCards),
+                "saves" => Ok(MatchStatistic::Saves),
+                "bonus" => Ok(MatchStatistic::Bonus),
+                "bps" => Ok(MatchStatistic::Bps),
+                "minutes" => Ok(MatchStatistic::Minutes),
+                _ => Err("Could not convert statistic"),
+            }
+        }
+    }
+
+    // TODO: unit testing for these arrays
+
+    pub fn points_multiplier(match_stat: &MatchStatistic, player_position: &fpl_positions::Position) -> i32
+    {
+        match match_stat {
+            MatchStatistic::GoalsScored => match player_position {
+                fpl_positions::Position::FWD => 4,
+                fpl_positions::Position::MID => 5,
+                fpl_positions::Position::DEF | fpl_positions::Position::GK => 6,
+            },
+            MatchStatistic::Assists => 3,
+            MatchStatistic::Bps => 1,
+            MatchStatistic::Bonus => 0, // TODO: check the difference between Bps and Bonus
+            MatchStatistic::OwnGoals => -2,
+            MatchStatistic::YellowCards => -1,
+            MatchStatistic::RedCards => -3,
+            MatchStatistic::Saves => 3,
+            MatchStatistic::PenaltiesMissed => -2,
+            MatchStatistic::PenaltiesSaved => 5,
+            MatchStatistic::Minutes => 1, 
+        }
+    } 
+
+    pub fn points_calculator(match_stat: &MatchStatistic, stat_value: i32) -> i32
+    {
+        match match_stat {
+            MatchStatistic::GoalsScored => stat_value,
+            MatchStatistic::Assists => stat_value,
+            MatchStatistic::Bps => stat_value,
+            MatchStatistic::Bonus => stat_value, // TODO: check the difference between Bps and Bonus
+            MatchStatistic::OwnGoals => stat_value,
+            MatchStatistic::YellowCards => stat_value,
+            MatchStatistic::RedCards => stat_value,
+            MatchStatistic::Saves => stat_value / 3,
+            MatchStatistic::PenaltiesMissed => stat_value,
+            MatchStatistic::PenaltiesSaved => stat_value,
+            MatchStatistic::Minutes => match stat_value {
+                minutes if minutes > 0 => 1,
+                minutes if minutes > 60 => 2,
+                _ => 0
+            }
+        }
+    }
+
+    #[derive(Debug)]
+    pub struct MatchStatisticData {
+        pub statistic: MatchStatistic,
+        pub value: i32
+    }
+
+    impl MatchStatisticData {
+        pub fn from(identifier: &str, data: i32) -> Result<MatchStatisticData, &'static str> {
+            
+            let stat_result = MatchStatistic::from(identifier);
+            if let Ok(match_statistic) = stat_result {
+                Ok(MatchStatisticData {
+                    statistic: match_statistic,
+                    value: data
+                })
+            }
+            else {
+                Err(stat_result.unwrap_err())
+            }
+        }
     }
 }
 
@@ -202,7 +328,7 @@ mod fpl_fixtures {
     use chrono::{DateTime, Utc};
     use std::collections::HashMap;
 
-    use crate::fpl_teams;
+    use crate::{fpl_match_stats::{self, points_calculator, points_multiplier, MatchStatisticData}, fpl_players, fpl_teams};
 
     #[derive(Debug)]
     pub struct MatchScore {
@@ -212,61 +338,26 @@ mod fpl_fixtures {
     }
 
     #[derive(Debug)]
-    pub enum MatchStatistic {
-        GoalsScored(i32),
-        Assists(i32),
-        OwnGoals(i32),
-        PenaltiesSaved(i32),
-        PenaltiesMissed(i32),
-        YellowCards(i32),
-        RedCards(i32),
-        Saves(i32),
-        Bonus(i32),
-        Bps(i32),
-    }
-
-    impl MatchStatistic {
-        pub fn from(identifier: &str, data: i32) -> Result<MatchStatistic, &'static str> {
-            match identifier {
-                "goals_scored" => Ok(MatchStatistic::GoalsScored(data)),
-                "assists" => Ok(MatchStatistic::Assists(data)),
-                "own_goals" => Ok(MatchStatistic::OwnGoals(data)),
-                "penalties_saved" => Ok(MatchStatistic::PenaltiesSaved(data)),
-                "penalties_missed" => Ok(MatchStatistic::PenaltiesMissed(data)),
-                "yellow_cards" => Ok(MatchStatistic::YellowCards(data)),
-                "red_cards" => Ok(MatchStatistic::RedCards(data)),
-                "saves" => Ok(MatchStatistic::Saves(data)),
-                "bonus" => Ok(MatchStatistic::Bonus(data)),
-                "bps" => Ok(MatchStatistic::Bps(data)),
-                _ => Err("Could not convert statistic"),
-            }
-        }
-    }
-
-    #[derive(Debug)]
     pub struct Match {
         pub code: u32,
         pub event: u32,
         pub finished: bool,
         pub finished_provisional: bool,
         pub id: u32,
-        pub kickoff_time: DateTime<chrono::Utc>,
+        pub kickoff_time: DateTime<Utc>,
         pub minutes: u32,
         pub provisional_start_time: bool,
         pub started: bool,
         pub home_team_id: u64,
         pub away_team_id: u64,
         pub score: Option<MatchScore>, // If the game has not been played then there is no score
-        pub stats: HashMap<u32, Vec<MatchStatistic>>,
+        pub stats: HashMap<u32, Vec<fpl_match_stats::MatchStatisticData>>,
     }
 
     impl Match {
-        /* TODO:
-        - Get team names (from loaded list of teams??)
-        - Get player points from match */
         pub fn home_team(self, teams: &Vec<fpl_teams::FplTeam>) -> String {
             if let Some(team) = teams.iter().find(|&t| {t.id == self.home_team_id} ) {
-                team.name
+                String::from(&team.name)
             }
             else {
                 format!("N/A")
@@ -275,12 +366,21 @@ mod fpl_fixtures {
 
         pub fn away_team(self, teams: &Vec<fpl_teams::FplTeam>) -> String {
             if let Some(team) = teams.iter().find(|&t| {t.id == self.away_team_id} ) {
-                team.name
+                String::from(&team.name)
             }
             else {
                 format!("N/A")
             }
         }
+    }
+
+    fn player_points(stats_list: &Vec<MatchStatisticData>, player: &fpl_players::FplPlayer) -> i32 {
+
+        let get_stat_points = |stat: &MatchStatisticData| -> i32 { return 
+            points_multiplier(&stat.statistic, &player.position) * points_calculator(&stat.statistic, stat.value)
+        };
+
+        stats_list.iter().map(get_stat_points).sum()
     }
 }
 
@@ -290,29 +390,24 @@ mod fpl_conversions {
 
     use crate::fpl_fixtures;
     use crate::fpl_fixtures::MatchScore;
-    use crate::fpl_fixtures::MatchStatistic;
+    use crate::fpl_match_stats::MatchStatisticData;
     use crate::fpl_players;
     use crate::fpl_positions;
     use crate::fpl_teams;
 
     pub fn convert_position(
         api_position: &fpl_data::fpl_data::FplApiPosition,
-    ) -> Result<fpl_positions::Position, &'static str> {
+    ) -> Result<fpl_positions::FplPosition, &'static str> {
         let fpl_position = fpl_positions::FplPosition {
             id: api_position.id,
             squad_select: api_position.squad_select,
             squad_min_play: api_position.squad_min_play,
             squad_max_play: api_position.squad_max_play,
             element_count: api_position.element_count,
+            position: fpl_positions::Position::try_from(api_position.id - 1).expect("Unexpected position ID, could not map to a position GK/DEF/MID/FWD"),
         };
 
-        match api_position.id {
-            1 => Ok(fpl_positions::Position::GK(fpl_position)),
-            2 => Ok(fpl_positions::Position::DEF(fpl_position)),
-            3 => Ok(fpl_positions::Position::MID(fpl_position)),
-            4 => Ok(fpl_positions::Position::FWD(fpl_position)),
-            _ => Err("Unexpected position ID, could not map to a position GK/DEF/MID/FWD"),
-        }
+        Ok(fpl_position)
     }
 
     pub fn convert_player(api_player: &fpl_data::fpl_data::FplApiPlayer) -> fpl_players::FplPlayer {
@@ -323,6 +418,7 @@ mod fpl_conversions {
                 second_name: api_player.second_name.clone(),
                 display_name: api_player.web_name.clone(),
             },
+            position: fpl_positions::Position::try_from(api_player.element_type-1).expect("Could not convert position"),
             stats: fpl_players::FplPlayerStats {
                 minutes: api_player.minutes,
                 goals_scored: api_player.goals_scored,
@@ -414,17 +510,17 @@ mod fpl_conversions {
             None
         };
 
-        let mut match_stats: HashMap<u32, Vec<MatchStatistic>> = HashMap::new();
+        let mut match_stats: HashMap<u32, Vec<MatchStatisticData>> = HashMap::new();
 
         api_fixture.stats.iter().for_each(|stat| {
             stat.h.iter().for_each(|player_id| {
                 match_stats.entry(player_id.element).or_insert_with(Vec::new).push(
-                    MatchStatistic::from(&stat.identifier, player_id.value).expect("Could not convert statistic for home player")
+                    MatchStatisticData::from(&stat.identifier, player_id.value).expect("Could not convert statistic for home player")
                 )
             });
             stat.a.iter().for_each(|player_id| {
                 match_stats.entry(player_id.element).or_insert_with(Vec::new).push(
-                    MatchStatistic::from(&stat.identifier, player_id.value).expect("Could not convert statistic for away player")
+                    MatchStatisticData::from(&stat.identifier, player_id.value).expect("Could not convert statistic for away player")
                 )
             });
         });
@@ -463,23 +559,15 @@ mod tests {
             .await
             .expect("Failed to get positions");
 
-        let positions: Vec<fpl_positions::Position> = api_positions
+        let positions: Vec<fpl_positions::FplPosition> = api_positions
             .iter()
             .map(|position| {
                 fpl_conversions::convert_position(position).expect("Failed to convert position")
             })
             .collect();
 
-        if let fpl_positions::Position::GK(position_data) = &positions[0] {
-            assert_eq!(position_data.id, 1);
-        } else {
-            assert!(false);
-        }
-        if let fpl_positions::Position::DEF(position_data) = &positions[1] {
-            assert_eq!(position_data.id, 2);
-        } else {
-            assert!(false);
-        }
+        assert_eq!(positions[0].id, 1);
+        assert_eq!(positions[1].id, 2);
     }
 
     #[tokio::test]
