@@ -18,12 +18,12 @@ pub mod fpl_data {
     }
 
     pub async fn get_all_data() -> Result<serde_json::Value, reqwest::Error> {
-        let request_url = format!("https://fantasy.premierleague.com/api/bootstrap-static/");
+        let request_url = "https://fantasy.premierleague.com/api/bootstrap-static/".to_string();
         api_call(&request_url).await
     }
 
     pub async fn get_fixtures_data() -> Result<serde_json::Value, reqwest::Error> {
-        let request_url = format!("https://fantasy.premierleague.com/api/fixtures/");
+        let request_url = "https://fantasy.premierleague.com/api/fixtures/".to_string();
         api_call(&request_url).await
     }
 

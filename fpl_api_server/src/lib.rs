@@ -360,7 +360,7 @@ mod fpl_fixtures {
                 String::from(&team.name)
             }
             else {
-                format!("N/A")
+                "N/A".to_string()
             }
         }
 
@@ -369,15 +369,14 @@ mod fpl_fixtures {
                 String::from(&team.name)
             }
             else {
-                format!("N/A")
+                "N/A".to_string()
             }
         }
     }
 
     fn player_points(stats_list: &Vec<MatchStatisticData>, player: &fpl_players::FplPlayer) -> i32 {
 
-        let get_stat_points = |stat: &MatchStatisticData| -> i32 { return 
-            points_multiplier(&stat.statistic, &player.position) * points_calculator(&stat.statistic, stat.value)
+        let get_stat_points = |stat: &MatchStatisticData| -> i32 { points_multiplier(&stat.statistic, &player.position) * points_calculator(&stat.statistic, stat.value)
         };
 
         stats_list.iter().map(get_stat_points).sum()
@@ -514,12 +513,12 @@ mod fpl_conversions {
 
         api_fixture.stats.iter().for_each(|stat| {
             stat.h.iter().for_each(|player_id| {
-                match_stats.entry(player_id.element).or_insert_with(Vec::new).push(
+                match_stats.entry(player_id.element).or_default().push(
                     MatchStatisticData::from(&stat.identifier, player_id.value).expect("Could not convert statistic for home player")
                 )
             });
             stat.a.iter().for_each(|player_id| {
-                match_stats.entry(player_id.element).or_insert_with(Vec::new).push(
+                match_stats.entry(player_id.element).or_default().push(
                     MatchStatisticData::from(&stat.identifier, player_id.value).expect("Could not convert statistic for away player")
                 )
             });
@@ -578,7 +577,7 @@ mod tests {
 
         let players: Vec<fpl_players::FplPlayer> = api_players
             .iter()
-            .map(|player| fpl_conversions::convert_player(player))
+            .map(fpl_conversions::convert_player)
             .collect();
 
         assert_eq!(players[3].name.display_name, "Fábio Vieira");
