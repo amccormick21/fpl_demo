@@ -68,7 +68,9 @@ pub mod fpl_data {
             .expect("Failed to get all data from API call");
 
         if let serde_json::Value::Object(mut object_data) = all_data {
-            if let Some(serde_json::Value::Array(positions_list)) = object_data.remove("element_types") {
+            if let Some(serde_json::Value::Array(positions_list)) =
+                object_data.remove("element_types")
+            {
                 let position_conversion = |json_value: serde_json::Value| -> FplApiPosition {
                     serde_json::from_value(json_value).expect("Failed to convert position")
                 };
@@ -118,8 +120,8 @@ pub mod fpl_data {
 
     pub async fn get_fixtures() -> Result<Vec<FplApiFixture>, &'static str> {
         let fixtures_data = get_fixtures_data()
-        .await
-        .expect("Failed to get data from API call");
+            .await
+            .expect("Failed to get data from API call");
 
         if let serde_json::Value::Array(fixtures) = fixtures_data {
             let fixture_conversion = |json_value: serde_json::Value| -> FplApiFixture {
@@ -265,7 +267,7 @@ pub mod fpl_data {
         pub value: i32,
         pub element: u32, // Player (element) id
     }
-        
+
     #[derive(Debug, Serialize, Deserialize)]
     pub struct FplApiFixtureStats {
         pub identifier: String,
