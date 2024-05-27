@@ -1,10 +1,22 @@
 pub mod fpl_data {
+    use std::error::Error;
+
     use reqwest;
     use serde::{Deserialize, Serialize};
 
-    fn convert_vec_to_generic<F, T>(values: Vec<serde_json::Value>, conversion_fn: F) -> Vec<T>
+
+    pub trait FplApiData {
+
+        fn api_endpoint() -> String;
+        fn json_field() -> String;
+        type JsonExtractType;
+        fn from_json(json: serde_json::Value) -> Self::JsonExtractType;
+    }
+
+    fn convert_vec_to_generic<F, T>(values: Vec<serde_json::Value>, conversion_fn: F) -> T::JsonExtractType
     where
-        T: Serialize + Deserialize<'static>, // 'static lifetime for simplicity
+        T: FplApiData,
+        T::JsonExtractType: FromIterator<T>,
         F: Fn(serde_json::Value) -> T,
     {
         values.into_iter().map(conversion_fn).collect()
@@ -17,13 +29,33 @@ pub mod fpl_data {
         response.json().await
     }
 
+    pub async fn get_component<T>() -> Result<T::JsonExtractType, String>
+    where
+        T: FplApiData,
+    {
+        let endpoint = T::api_endpoint();
+        let data = api_call(&endpoint).await.expect("Failed to get data from API call");
+
+        if let serde_json::Value::Object(object_data) = data {
+
+            match object_data[&T::json_field()] {
+                serde_json::Value::Array(array_data) => Ok(convert_vec_to_generic(array_data, T::from_json)),
+                serde_json::Value::Number(_) => Ok(T::from_json(object_data[&T::json_field()])),
+                _ => Err(format!("Could not convert from json object to a known data format")),
+            }
+        }
+        else {
+            Err(format!("Expected all data to be a json object"))
+        }
+    }
+
     pub async fn get_all_data() -> Result<serde_json::Value, reqwest::Error> {
-        let request_url = "https://fantasy.premierleague.com/api/bootstrap-static/".to_string();
+        let request_url = "https://fantasy.premierleague.com/api/bootstrap-static/";
         api_call(&request_url).await
     }
 
     pub async fn get_fixtures_data() -> Result<serde_json::Value, reqwest::Error> {
-        let request_url = "https://fantasy.premierleague.com/api/fixtures/".to_string();
+        let request_url = "https://fantasy.premierleague.com/api/fixtures/";
         api_call(&request_url).await
     }
 
@@ -42,6 +74,9 @@ pub mod fpl_data {
             Err("Expected all data to be a json object")
         }
     }
+
+    // TODO: all these conversion functions follow the same format.
+    // Implement a trait FplJsonConvertible or something so we can convert them using a single generic function?
 
     pub async fn get_players() -> Result<Vec<FplApiPlayer>, &'static str> {
         let all_data = get_all_data()
