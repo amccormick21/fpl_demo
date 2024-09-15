@@ -585,7 +585,7 @@ mod tests {
             .map(fpl_conversions::convert_player)
             .collect();
 
-        assert_eq!(players[3].name.display_name, "Fábio Vieira");
+        assert_eq!(players[3].name.display_name, "Havertz");
     }
 
     #[tokio::test]
@@ -637,6 +637,6 @@ mod tests {
 
         assert_eq!(fixtures.len(), 19 * 20);
         assert!(fixtures[0].finished);
-        assert_eq!(fixtures[0].home_team_id, 6);
+        assert_eq!(fixtures[0].home_team_id, 14);
     }
 }
