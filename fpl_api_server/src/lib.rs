@@ -558,10 +558,16 @@ mod tests {
     use super::*;
 
     #[tokio::test]
+    async fn test_get_events() {
+        let events = fpl_data::get_events().await.expect("Failed to get events");
+ 
+        let _ = events.first().unwrap();
+    }
+
+    #[tokio::test]
     async fn test_get_positions() {
-        let api_positions = fpl_data::get_positions()
-            .await
-            .expect("Failed to get positions");
+
+        let api_positions = fpl_data::get_positions().await.expect("Failed to get positions");
 
         let positions: Vec<fpl_positions::FplPosition> = api_positions
             .iter()
@@ -576,9 +582,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_players() {
-        let api_players = fpl_data::get_players()
-            .await
-            .expect("Failed to get players");
+        let api_players = fpl_data::get_players().await.expect("Failed to get players");
 
         let players: Vec<fpl_players::FplPlayer> = api_players
             .iter()
@@ -590,9 +594,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_stats_per_90() {
-        let api_players = fpl_data::get_players()
-            .await
-            .expect("Failed to get players");
+        let api_players = fpl_data::get_players().await.expect("Failed to get players");
         let player_indices = vec![0, 10, 25, 50];
 
         // Get the indices of players we want to review

@@ -10,7 +10,7 @@ pub mod fpl_data {
         fn api_endpoint() -> String;
         fn json_field() -> String;
         type JsonExtractType;
-        fn from_json(json: serde_json::Value) -> Self::JsonExtractType;
+        fn from_json(json: serde_json::Value) -> Result<Self::JsonExtractType, String>;
     }
 
     fn convert_vec_to_generic<F, T>(values: Vec<serde_json::Value>, conversion_fn: F) -> T::JsonExtractType
@@ -31,21 +31,22 @@ pub mod fpl_data {
 
     pub async fn get_component<T>() -> Result<T::JsonExtractType, String>
     where
-        T: FplApiData,
+        T: FplApiData
     {
         let endpoint = T::api_endpoint();
         let data = api_call(&endpoint).await.expect("Failed to get data from API call");
 
-        if let serde_json::Value::Object(object_data) = data {
-
-            match object_data[&T::json_field()] {
-                serde_json::Value::Array(array_data) => Ok(convert_vec_to_generic(array_data, T::from_json)),
-                serde_json::Value::Number(_) => Ok(T::from_json(object_data[&T::json_field()])),
-                _ => Err(format!("Could not convert from json object to a known data format")),
-            }
-        }
-        else {
-            Err(format!("Expected all data to be a json object"))
+        match data {
+            serde_json::Value::Array(_) => T::from_json(data),
+            serde_json::Value::Object(mut object_data) => {
+                if let Some(field_value) = object_data.remove(&T::json_field()) {
+                    T::from_json(field_value)
+                }
+                else {
+                    Err(format!("Field {} not found in JSON object", T::json_field()))
+                }
+            },
+            _ => Err(format!("Expected data to be a json object"))
         }
     }
 
@@ -54,68 +55,16 @@ pub mod fpl_data {
         api_call(&request_url).await
     }
 
-    pub async fn get_fixtures_data() -> Result<serde_json::Value, reqwest::Error> {
-        let request_url = "https://fantasy.premierleague.com/api/fixtures/";
-        api_call(&request_url).await
+    pub async fn get_events() -> Result<Vec<FplApiGameweek>, String> {
+        get_component::<FplApiGameweek>().await
     }
 
-    pub async fn get_events() -> Result<Vec<serde_json::Value>, &'static str> {
-        let all_data = get_all_data()
-            .await
-            .expect("Failed to get data from API call");
-
-        if let serde_json::Value::Object(object_data) = all_data {
-            if let serde_json::Value::Array(events_list) = &object_data["events"] {
-                Ok(events_list.to_vec())
-            } else {
-                Err("Expected events to be a json array")
-            }
-        } else {
-            Err("Expected all data to be a json object")
-        }
+    pub async fn get_players() -> Result<Vec<FplApiPlayer>, String> {
+        get_component::<FplApiPlayer>().await
     }
 
-    // TODO: all these conversion functions follow the same format.
-    // Implement a trait FplJsonConvertible or something so we can convert them using a single generic function?
-
-    pub async fn get_players() -> Result<Vec<FplApiPlayer>, &'static str> {
-        let all_data = get_all_data()
-            .await
-            .expect("Failed to get all data from API call");
-
-        if let serde_json::Value::Object(mut object_data) = all_data {
-            if let Some(serde_json::Value::Array(players_list)) = object_data.remove("elements") {
-                let player_conversion = |json_value: serde_json::Value| -> FplApiPlayer {
-                    serde_json::from_value(json_value).expect("Failed to convert player")
-                };
-                Ok(convert_vec_to_generic(players_list, player_conversion))
-            } else {
-                Err("Expected players to be a json array")
-            }
-        } else {
-            Err("Expected all data to be a json object")
-        }
-    }
-
-    pub async fn get_positions() -> Result<Vec<FplApiPosition>, &'static str> {
-        let all_data = get_all_data()
-            .await
-            .expect("Failed to get all data from API call");
-
-        if let serde_json::Value::Object(mut object_data) = all_data {
-            if let Some(serde_json::Value::Array(positions_list)) =
-                object_data.remove("element_types")
-            {
-                let position_conversion = |json_value: serde_json::Value| -> FplApiPosition {
-                    serde_json::from_value(json_value).expect("Failed to convert position")
-                };
-                Ok(convert_vec_to_generic(positions_list, position_conversion))
-            } else {
-                Err("Expected positions to be a json array")
-            }
-        } else {
-            Err("Expected all data to be a json object")
-        }
+    pub async fn get_positions() -> Result<Vec<FplApiPosition>, String> {
+        get_component::<FplApiPosition>().await
     }
 
     pub async fn get_player_count() -> Result<usize, &'static str> {
@@ -134,38 +83,12 @@ pub mod fpl_data {
         }
     }
 
-    pub async fn get_teams() -> Result<Vec<FplApiTeam>, &'static str> {
-        let all_data = get_all_data()
-            .await
-            .expect("Failed to get all data from API call");
-
-        if let serde_json::Value::Object(mut object_data) = all_data {
-            if let Some(serde_json::Value::Array(teams_list)) = object_data.remove("teams") {
-                let team_conversion = |json_value: serde_json::Value| -> FplApiTeam {
-                    serde_json::from_value(json_value).expect("Failed to convert team")
-                };
-                Ok(convert_vec_to_generic(teams_list, team_conversion))
-            } else {
-                Err("Expected teams to be a json array")
-            }
-        } else {
-            Err("Expected all data to be a json object")
-        }
+    pub async fn get_teams() -> Result<Vec<FplApiTeam>, String> {
+        get_component::<FplApiTeam>().await
     }
 
-    pub async fn get_fixtures() -> Result<Vec<FplApiFixture>, &'static str> {
-        let fixtures_data = get_fixtures_data()
-            .await
-            .expect("Failed to get data from API call");
-
-        if let serde_json::Value::Array(fixtures) = fixtures_data {
-            let fixture_conversion = |json_value: serde_json::Value| -> FplApiFixture {
-                serde_json::from_value(json_value).expect("Failed to convert fixtures")
-            };
-            Ok(convert_vec_to_generic(fixtures, fixture_conversion))
-        } else {
-            Err("Expected fixtures to be a json array")
-        }
+    pub async fn get_fixtures() -> Result<Vec<FplApiFixture>, String> {
+        get_component::<FplApiFixture>().await
     }
 
     #[derive(Serialize, Deserialize, Debug)]
@@ -188,6 +111,34 @@ pub mod fpl_data {
         pub strength_attack_away: u32,
         pub strength_defence_home: u32,
         pub strength_defence_away: u32,
+    }
+
+    impl FplApiData for FplApiTeam {
+        fn api_endpoint() -> String {
+            format!("https://fantasy.premierleague.com/api/bootstrap-static/")
+        }
+
+        fn json_field() -> String {
+            format!("teams")
+        }
+
+        fn from_json(json: serde_json::Value) -> Result<Self::JsonExtractType, String> {
+
+            // The team list is in "teams"
+            if let serde_json::Value::Array(teams_list) = json {
+                let team_conversion = |json_value: serde_json::Value| -> FplApiTeam {
+                    serde_json::from_value(json_value).expect("Failed to convert team")
+                };
+
+                Ok(teams_list.into_iter().map(team_conversion).collect())
+
+            } else {
+                Err(format!("Expected teams to be a json array"))
+            }
+
+        }
+
+        type JsonExtractType = Vec<FplApiTeam>;
     }
 
     #[derive(Serialize, Deserialize, Debug)]
@@ -282,6 +233,31 @@ pub mod fpl_data {
         pub clean_sheets_per_90: f64,
     }
 
+    impl FplApiData for FplApiPlayer {
+        fn api_endpoint() -> String {
+            format!("https://fantasy.premierleague.com/api/bootstrap-static/")
+        }
+
+        fn json_field() -> String {
+            format!("elements")
+        }
+
+        fn from_json(json: serde_json::Value) -> Result<Vec<FplApiPlayer>, String> {
+            
+            if let serde_json::Value::Array(players_list) = json {
+                let player_conversion = |json_value: serde_json::Value| -> FplApiPlayer {
+                    serde_json::from_value(json_value).expect("Failed to convert player")
+                };
+                Ok(convert_vec_to_generic(players_list, player_conversion))
+            } else {
+                Err(format!("Expected players to be a json array"))
+            }
+
+        }
+
+        type JsonExtractType = Vec<FplApiPlayer>;
+    }
+
     #[derive(Serialize, Deserialize, Debug)]
     pub struct FplApiPosition {
         pub id: u32,
@@ -295,6 +271,33 @@ pub mod fpl_data {
         pub ui_shirt_specific: bool,
         pub sub_positions_locked: Vec<u32>,
         pub element_count: u32,
+    }
+
+    impl FplApiData for FplApiPosition {
+        fn api_endpoint() -> String {
+            format!("https://fantasy.premierleague.com/api/bootstrap-static/")
+        }
+
+        fn json_field() -> String {
+            format!("element_types")
+        }
+
+        fn from_json(json: serde_json::Value) -> Result<Vec<FplApiPosition>, String> {
+        
+            // The team list is in "teams"
+            if let serde_json::Value::Array(position_list) = json {
+                let position_conversion = |json_value: serde_json::Value| -> FplApiPosition {
+                    serde_json::from_value(json_value).expect("Failed to convert team")
+                };
+
+                Ok(position_list.into_iter().map(position_conversion).collect())
+
+            } else {
+                Err(format!("Expected positions to be a json array"))
+            }
+        }
+
+        type JsonExtractType = Vec<FplApiPosition>;
     }
 
     #[derive(Debug, Serialize, Deserialize)]
@@ -327,6 +330,103 @@ pub mod fpl_data {
         pub team_h_score: Option<u32>,
         pub stats: Vec<FplApiFixtureStats>,
     }
+
+    impl FplApiData for FplApiFixture {
+        fn api_endpoint() -> String {
+            format!("https://fantasy.premierleague.com/api/fixtures/")
+        }
+
+        fn from_json(json: serde_json::Value) -> Result<Self::JsonExtractType, String> {
+            if let serde_json::Value::Array(fixtures) = json {
+
+                let fixture_conversion = |json_value: serde_json::Value| -> FplApiFixture {
+                    serde_json::from_value(json_value).expect("Failed to convert fixtures")
+                };
+
+                Ok(fixtures.into_iter().map(fixture_conversion).collect())
+
+            } else {
+                Err(format!("Expected fixtures to be a json array"))
+            }
+        }
+
+        fn json_field() -> String {
+            format!("")
+        }
+
+        type JsonExtractType = Vec<Self>;
+    }
+
+    #[derive(Serialize, Deserialize, Debug)]
+    pub struct FplApiChipPlay {
+        chip_name: String,
+        num_played: u32,
+    }
+
+    #[derive(Serialize, Deserialize, Debug)]
+    pub struct FplApiTopElementInfo {
+        id: Option<u32>,
+        points: Option<u32>,
+    }
+
+    #[derive(Serialize, Deserialize, Debug)]
+    pub struct FplApiGameweek {
+        id: u32,
+        name: String,
+        deadline_time: String,
+        release_time: Option<String>,
+        average_entry_score: u32,
+        finished: bool,
+        data_checked: bool,
+        highest_scoring_entry: Option<u32>,
+        deadline_time_epoch: u64,
+        deadline_time_game_offset: u32,
+        highest_score: Option<u32>,
+        is_previous: bool,
+        is_current: bool,
+        is_next: bool,
+        cup_leagues_created: bool,
+        h2h_ko_matches_created: bool,
+        ranked_count: u64,
+        chip_plays: Vec<FplApiChipPlay>,
+        most_selected: Option<u32>,
+        most_transferred_in: Option<u32>,
+        top_element: Option<u32>,
+        top_element_info: Option<FplApiTopElementInfo>,
+        transfers_made: u64,
+        most_captained: Option<u32>,
+        most_vice_captained: Option<u32>,
+    }
+
+    impl FplApiData for FplApiGameweek {
+
+        fn api_endpoint() -> String {
+            format!("https://fantasy.premierleague.com/api/bootstrap-static/")
+        }
+
+        fn json_field() -> String {
+            format!("events")
+        }
+
+        fn from_json(json: serde_json::Value) -> Result<Self::JsonExtractType, String> {
+
+            // The team list is in "events"
+            if let serde_json::Value::Array(gameweek_list) = json {
+                let event_conversion = |json_value: serde_json::Value| -> FplApiGameweek {
+                    serde_json::from_value(json_value).expect("Failed to convert gameweek")
+                };
+
+                Ok(gameweek_list.into_iter().map(event_conversion).collect())
+
+            } else {
+                Err(format!("Expected events to be a json array"))
+            }
+
+        }
+
+        type JsonExtractType = Vec<FplApiGameweek>;
+    }
+
 }
 
 #[cfg(test)]
@@ -336,16 +436,5 @@ mod tests {
     #[tokio::test]
     async fn test_get_data() {
         let _ = fpl_data::get_all_data().await;
-    }
-
-    #[tokio::test]
-    async fn test_get_events() {
-        let events = fpl_data::get_events().await.expect("Failed to get events");
-
-        if let Some(serde_json::Value::Object(first_event)) = events.first() {
-            if let serde_json::Value::String(event_name) = &first_event["name"] {
-                assert_eq!(event_name, "Gameweek 1");
-            }
-        }
     }
 }
