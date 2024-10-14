@@ -820,7 +820,7 @@ mod tests {
 
             // Perform our own calculation to get the points in the match
             // Let's figure this out later
-            let match_stats: Vec<MatchStatisticMap> = match_l ist.match_list.into_iter().map(|fixture| fixture.stats).collect();
+            let match_stats: Vec<MatchStatisticMap> = match_list.match_list.into_iter().map(|fixture| fixture.stats).collect();
             let calculated_points: Vec<Vec<(&FplPlayer, i32)>> = match_stats.into_iter().map(|mut stats| stats.get_player_points_from_stats(&player_list)).collect();
             
             // Now we need to add this up over the range of games
