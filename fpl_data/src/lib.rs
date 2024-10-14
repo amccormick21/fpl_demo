@@ -1,6 +1,4 @@
 pub mod fpl_data {
-    use std::error::Error;
-
     use reqwest;
     use serde::{Deserialize, Serialize};
 
